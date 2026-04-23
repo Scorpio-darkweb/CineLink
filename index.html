@@ -10,6 +10,8 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- jsQR for real QR code scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     
     <script>
         tailwind.config = {
@@ -163,6 +165,95 @@
             outline: none;
             border-radius: 0.5rem;
         }
+
+        /* ── Mobile / Responsive Overrides ── */
+
+        /* Mobile bottom nav */
+        #mobile-bottom-nav {
+            display: none;
+        }
+
+        /* Camera feed for QR scanning */
+        #qr-camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 0.75rem;
+            transform: scaleX(-1); /* mirror selfie-style */
+        }
+
+        #qr-scan-canvas { display: none; }
+
+        /* Mobile scan overlay corners */
+        .scan-corner {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-color: #00f0ff;
+            border-style: solid;
+            z-index: 30;
+        }
+        .scan-corner-tl { top: 10px; left: 10px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+        .scan-corner-tr { top: 10px; right: 10px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+        .scan-corner-bl { bottom: 10px; left: 10px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+        .scan-corner-br { bottom: 10px; right: 10px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+        /* Mobile transmit screen */
+        #mobile-transmit-screen {
+            display: none;
+        }
+
+        /* Pulse ring animation */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.5); }
+            70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(0, 240, 255, 0); }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
+        }
+        .pulse-ring { animation: pulse-ring 2s infinite; }
+
+        /* Transfer progress bar */
+        @keyframes transfer-shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .transfer-shimmer {
+            background: linear-gradient(90deg, #00f0ff, #ff00ff, #00f0ff);
+            background-size: 200% 100%;
+            animation: transfer-shimmer 1.5s linear infinite;
+        }
+
+        /* Mobile file list items */
+        .mobile-file-item {
+            transition: all 0.2s ease;
+        }
+        .mobile-file-item.selected {
+            border-color: rgba(0, 240, 255, 0.6) !important;
+            background: rgba(0, 240, 255, 0.08) !important;
+        }
+
+        @media (max-width: 768px) {
+            /* Hide desktop sidebar */
+            aside.desktop-sidebar {
+                display: none !important;
+            }
+            /* Show mobile bottom nav */
+            #mobile-bottom-nav {
+                display: flex;
+            }
+            /* Adjust main content for bottom nav */
+            .flex.h-screen { flex-direction: column; }
+            main.flex-1 { padding-bottom: 4.5rem; }
+
+            /* Welcome screen adjustments */
+            #welcome-screen .max-w-lg {
+                padding: 1.5rem;
+            }
+
+            /* Views padding adjustment */
+            .view-container {
+                padding-bottom: 5rem;
+            }
+        }
     </style>
 </head>
 <body class="antialiased selection:bg-purple-500/30">
@@ -180,12 +271,29 @@
                 <i class="ph-fill ph-aperture text-5xl text-white"></i>
             </div>
             <h1 class="text-4xl font-bold mb-4">Welcome to CineLink</h1>
-            <p class="text-gray-400 mb-8 text-lg">To begin serving media locally, CineLink requires permission to access your local video files. No files are uploaded to the internet.</p>
             
-            <button onclick="document.getElementById('media-upload').click()" class="holo-border-btn px-10 py-4 text-lg font-bold text-white w-full flex items-center justify-center gap-3">
-                <i class="ph ph-folder-open text-2xl"></i>
-                Select Media Files
-            </button>
+            <!-- Desktop welcome -->
+            <div id="welcome-desktop">
+                <p class="text-gray-400 mb-8 text-lg">To begin serving media locally, CineLink requires permission to access your local video files. No files are uploaded to the internet.</p>
+                <button onclick="document.getElementById('media-upload').click()" class="holo-border-btn px-10 py-4 text-lg font-bold text-white w-full flex items-center justify-center gap-3">
+                    <i class="ph ph-folder-open text-2xl"></i>
+                    Select Media Files
+                </button>
+            </div>
+
+            <!-- Mobile welcome -->
+            <div id="welcome-mobile" class="hidden">
+                <p class="text-gray-400 mb-6 text-base">CineLink detected a <strong class="text-white">mobile device</strong>. You can browse your library or send files wirelessly to a PC running CineLink.</p>
+                <button onclick="app.openMobileTransmit()" class="holo-border-btn px-8 py-4 text-base font-bold text-white w-full flex items-center justify-center gap-3 mb-3">
+                    <i class="ph ph-upload-simple text-2xl"></i>
+                    Send Files to PC
+                </button>
+                <button onclick="app.dismissWelcome()" class="w-full px-8 py-3 text-sm font-medium text-gray-400 border border-white/10 rounded-lg hover:bg-white/5 transition flex items-center justify-center gap-2">
+                    <i class="ph ph-house text-lg"></i>
+                    Browse Library
+                </button>
+            </div>
+
             <p class="text-xs text-gray-500 mt-6"><i class="ph ph-shield-check text-green-400"></i> Runs entirely in your browser securely.</p>
         </div>
     </div>
@@ -194,7 +302,7 @@
     <div class="flex h-screen overflow-hidden relative">
 
         <!-- Sidebar -->
-        <aside class="w-20 lg:w-64 glass flex flex-col justify-between h-full z-20 border-r border-white/5 transition-all duration-300">
+        <aside class="desktop-sidebar w-20 lg:w-64 glass flex flex-col justify-between h-full z-20 border-r border-white/5 transition-all duration-300">
             <div>
                 <div class="h-20 flex items-center justify-center lg:justify-start lg:px-6 cursor-pointer" onclick="app.switchView('dashboard')">
                     <i class="ph-fill ph-aperture text-3xl holo-text"></i>
@@ -213,6 +321,10 @@
                     <a href="#" onclick="app.switchView('devices')" class="flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-colors group">
                         <i class="ph ph-devices text-xl group-hover:text-cyan-400 transition-colors"></i>
                         <span class="ml-4 font-medium hidden lg:block">Devices</span>
+                    </a>
+                    <a href="#" onclick="app.switchView('wired-sync')" class="flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-colors group">
+                        <i class="ph ph-usb text-xl group-hover:text-cyan-400 transition-colors"></i>
+                        <span class="ml-4 font-medium hidden lg:block">Wired Sync</span>
                     </a>
                     <a href="#" onclick="app.switchView('settings')" class="flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-colors group">
                         <i class="ph ph-gear text-xl group-hover:text-cyan-400 transition-colors"></i>
@@ -272,7 +384,10 @@
                     <span class="font-bold text-white"><span id="selected-count">0</span> items selected</span>
                     <div class="flex gap-3">
                         <button onclick="app.showTransferQR(true)" class="bg-cyan-500 hover:bg-cyan-400 text-dark-900 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition">
-                            <i class="ph ph-lightning"></i> Fast Transfer
+                            <i class="ph ph-qr-code"></i> Generate QR
+                        </button>
+                        <button onclick="app.openQRScanModal()" class="bg-purple-500 hover:bg-purple-400 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition">
+                            <i class="ph ph-scan"></i> Scan (Receive)
                         </button>
                         <button onclick="app.clearSelection()" class="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-bold transition">Cancel</button>
                     </div>
@@ -307,9 +422,6 @@
                         <div class="flex items-center gap-4 mb-6">
                             <button id="details-play-btn" class="bg-white text-black px-8 py-3 rounded-lg text-lg font-bold flex items-center gap-3 hover:bg-gray-200 transition">
                                 <i class="ph-fill ph-play text-2xl"></i> Play
-                            </button>
-                            <button id="details-qr-btn" class="glass px-8 py-3 rounded-lg text-lg font-bold text-white flex items-center gap-3 hover:bg-white/20 transition">
-                                <i class="ph ph-qr-code text-2xl"></i> Send QR
                             </button>
                             <button class="w-12 h-12 glass rounded-full flex items-center justify-center hover:bg-white/20 transition text-white">
                                 <i class="ph ph-plus text-xl"></i>
@@ -386,55 +498,40 @@
                         </div>
                     </div>
                     <button onclick="app.showTransferQR()" class="holo-border-btn px-6 py-3 flex items-center gap-2 text-white font-semibold flex-shrink-0">
-                        <i class="ph ph-lightning text-xl text-cyan-400"></i> Fast Transfer
+                        <i class="ph ph-qr-code text-xl"></i> Generate QR
                     </button>
                 </div>
             </div>
 
-            <!-- VIEW 3: Transfer (PC to Phone) -->
-            <div id="view-transfer" class="view-container bg-dark-900 flex flex-col p-8 lg:p-12">
-                <div class="max-w-4xl mx-auto w-full">
-                    <h2 class="text-3xl font-bold mb-2">High-Speed Local Transfer</h2>
-                    <p class="text-gray-400 mb-8">Send files directly from this PC to your mobile device at Wi-Fi speeds.</p>
-                    
-                    <div class="glass-panel p-12 rounded-3xl flex flex-col items-center justify-center border border-cyan-500/30 relative overflow-hidden mt-8">
-                        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
-                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none"></div>
-                        
-                        <!-- Visual PC to Phone Graphic -->
-                        <div class="flex items-center gap-4 md:gap-12 mb-10 relative z-10">
-                            <div class="flex flex-col items-center gap-3">
-                                <div class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-dark-800 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.8)]">
-                                    <i class="ph-fill ph-desktop text-4xl md:text-5xl text-white"></i>
-                                </div>
-                                <span class="text-sm font-bold text-white">This PC</span>
-                            </div>
-                            
-                            <div class="flex flex-col items-center gap-2">
-                                <div class="flex gap-2">
-                                    <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" style="animation-delay: 0s;"></div>
-                                    <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" style="animation-delay: 0.2s;"></div>
-                                    <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" style="animation-delay: 0.4s;"></div>
-                                    <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" style="animation-delay: 0.6s;"></div>
-                                    <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" style="animation-delay: 0.8s;"></div>
-                                </div>
-                                <span class="text-[10px] md:text-xs text-cyan-400 font-mono tracking-widest uppercase border border-cyan-500/30 px-3 py-1 rounded-full bg-cyan-500/10 mt-2">Up to 50MB/s</span>
-                            </div>
-
-                            <div class="flex flex-col items-center gap-3">
-                                <div class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-dark-800 border border-white/10 flex items-center justify-center shadow-lg">
-                                    <i class="ph-fill ph-device-mobile text-4xl md:text-5xl text-gray-400"></i>
-                                </div>
-                                <span class="text-sm font-bold text-gray-400">Mobile Phone</span>
+            <!-- VIEW 3: Transfer -->
+            <div id="view-transfer" class="view-container bg-dark-900 flex flex-col p-8">
+                <h2 class="text-3xl font-bold mb-8">QR File Transfer</h2>
+                <div class="grid md:grid-cols-2 gap-8 flex-1">
+                    <div class="glass-panel p-8 rounded-2xl flex flex-col items-center justify-center border-dashed border-2 border-cyan-500/50">
+                        <h3 class="text-xl font-bold mb-4">Receive Files</h3>
+                        <p class="text-gray-400 text-center mb-6 text-sm">Point your device camera at a CineLink QR code to receive files over local WiFi.</p>
+                        <div class="relative w-64 aspect-square bg-black rounded-xl overflow-hidden border-2 border-cyan-500 flex items-center justify-center">
+                            <video id="transfer-view-camera" autoplay playsinline muted class="w-full h-full object-cover" style="transform:scaleX(-1); display:none;"></video>
+                            <canvas id="transfer-view-canvas" class="hidden"></canvas>
+                            <div class="scan-corner scan-corner-tl"></div>
+                            <div class="scan-corner scan-corner-tr"></div>
+                            <div class="scan-corner scan-corner-bl"></div>
+                            <div class="scan-corner scan-corner-br"></div>
+                            <div class="absolute w-full h-0.5 bg-cyan-400 shadow-[0_0_15px_#00f0ff] animate-[scan_2s_ease-in-out_infinite]"></div>
+                            <div id="transfer-view-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-dark-900/90 z-30">
+                                <i class="ph ph-camera text-4xl text-white/20 mb-2"></i>
+                                <button onclick="app.startTransferViewCamera()" class="text-xs text-cyan-400 border border-cyan-500/30 px-3 py-1 rounded-lg hover:bg-cyan-500/10 transition">Enable Camera</button>
                             </div>
                         </div>
-
-                        <h3 class="text-2xl font-bold mb-4 relative z-10 text-white">Ready to Transmit</h3>
-                        <p class="text-gray-400 text-center text-sm max-w-lg mb-8 relative z-10">Select files from your Dashboard and click <strong class="text-cyan-400">Fast Transfer</strong>. This PC will generate a local hotspot QR code for your phone to scan, establishing a direct connection.</p>
-                        
-                        <button onclick="app.switchView('dashboard')" class="holo-border-btn px-10 py-4 text-white font-bold relative z-10 flex items-center gap-2 text-lg">
-                            <i class="ph ph-magnifying-glass text-xl"></i> Browse Files to Send
-                        </button>
+                        <p id="transfer-view-status" class="text-xs text-gray-500 mt-3">Camera off — click to start scanning</p>
+                    </div>
+                    <div class="glass-panel p-8 rounded-2xl flex flex-col items-center justify-center">
+                        <div class="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mb-6">
+                            <i class="ph-fill ph-paper-plane-right text-3xl text-cyan-400"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-4">Send Files</h3>
+                        <p class="text-gray-400 text-center text-sm mb-6">Select files from your Dashboard and click "Generate QR" to create a transmission code.</p>
+                        <button onclick="app.switchView('dashboard')" class="holo-border-btn px-6 py-3 text-white text-sm">Go to Dashboard</button>
                     </div>
                 </div>
             </div>
@@ -447,7 +544,7 @@
                         <button onclick="app.toggleModal('qr-show-modal')" class="holo-border-btn px-4 py-2 flex items-center gap-2 text-white text-sm">
                             <i class="ph ph-qr-code text-lg"></i> Show QR
                         </button>
-                        <button onclick="app.toggleModal('qr-scan-modal')" class="glass px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-white/10 transition text-sm">
+                        <button onclick="app.openQRScanModal()" class="glass px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-white/10 transition text-sm">
                             <i class="ph ph-scan text-lg"></i> Scan QR
                         </button>
                     </div>
@@ -513,10 +610,258 @@
                 </div>
             </div>
 
+            <!-- VIEW 6: Wired Sync Manager -->
+            <div id="view-wired-sync" class="view-container bg-dark-900 flex flex-col p-8 overflow-y-auto hide-scroll pb-24">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold">Wired Sync Manager</h2>
+                        <p class="text-sm text-gray-400 mt-1">Manage files received from mobile and sync directly to physical drives.</p>
+                    </div>
+                </div>
+
+                <div class="grid lg:grid-cols-3 gap-8">
+                    <!-- Left: Received Files List -->
+                    <div class="lg:col-span-2 glass-panel p-6 rounded-2xl flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold flex items-center gap-2"><i class="ph-fill ph-device-mobile text-cyan-400"></i> Phone Transfers</h3>
+                            <div class="flex items-center gap-2">
+                                <span id="received-count-badge" class="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded hidden">0 Items</span>
+                                <button onclick="app.openQRScanModal()" class="glass px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs text-gray-400 hover:text-white hover:bg-white/10 transition border border-white/10">
+                                    <i class="ph ph-scan text-sm"></i> Scan QR
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto pr-2 space-y-3" id="received-files-list">
+                            <!-- Dynamically populated. Initial empty state: -->
+                            <div class="flex flex-col items-center justify-center py-12 text-gray-500">
+                                <i class="ph ph-tray text-4xl mb-2 opacity-50"></i>
+                                <p class="text-sm">No files received from mobile yet.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Wired Devices & Sync Action -->
+                    <div class="glass-panel p-6 rounded-2xl flex flex-col">
+                        <h3 class="text-xl font-bold mb-4 flex items-center gap-2"><i class="ph-fill ph-usb text-cyan-400"></i> Wired Drives</h3>
+                        
+                        <div class="space-y-3 mb-4" id="wired-drives-list">
+                            <div class="text-center text-gray-500 py-4 text-xs">No physical drives mapped.</div>
+                        </div>
+
+                        <button onclick="app.addLocalDrive()" class="w-full mb-2 glass px-4 py-3 rounded-xl border border-dashed border-white/20 text-sm text-gray-400 hover:bg-white/10 hover:text-white transition flex items-center justify-center gap-2">
+                            <i class="ph ph-folder-plus text-lg"></i> Map Real Storage Drive
+                        </button>
+                        <p class="text-[10px] text-gray-500 text-center mb-6 px-4">This will open your operating system's native file picker to let you select a connected storage device.</p>
+
+                        <div class="mt-auto">
+                            <button onclick="app.startWiredSync()" id="sync-btn" class="w-full holo-border-btn py-4 flex items-center justify-center gap-2 text-white font-bold transition-all opacity-50 pointer-events-none">
+                                <i class="ph ph-export text-xl"></i> Sync to Drive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 
+    <!-- Mobile Bottom Navigation -->
+    <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 z-[60] glass border-t border-white/10 flex items-center justify-around px-2 py-2">
+        <button onclick="app.switchView('dashboard')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1 rounded-xl text-gray-400 hover:text-white transition" data-view="dashboard">
+            <i class="ph ph-house text-xl"></i>
+            <span class="text-[10px] font-medium">Home</span>
+        </button>
+        <button onclick="app.switchView('transfer')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1 rounded-xl text-gray-400 hover:text-white transition" data-view="transfer">
+            <i class="ph ph-qr-code text-xl"></i>
+            <span class="text-[10px] font-medium">Transfer</span>
+        </button>
+        <button onclick="app.openMobileTransmit()" class="flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition">
+            <div class="w-12 h-12 -mt-6 rounded-full bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.4)] border-2 border-dark-900">
+                <i class="ph ph-upload-simple text-xl text-white"></i>
+            </div>
+            <span class="text-[10px] font-medium text-gray-400">Send</span>
+        </button>
+        <button onclick="app.switchView('wired-sync')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1 rounded-xl text-gray-400 hover:text-white transition" data-view="wired-sync">
+            <i class="ph ph-usb text-xl"></i>
+            <span class="text-[10px] font-medium">Sync</span>
+        </button>
+        <button onclick="app.switchView('settings')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1 rounded-xl text-gray-400 hover:text-white transition" data-view="settings">
+            <i class="ph ph-gear text-xl"></i>
+            <span class="text-[10px] font-medium">Settings</span>
+        </button>
+    </nav>
+
+    <!-- Mobile Transmit Screen (Fullscreen overlay for phones) -->
+    <div id="mobile-transmit-screen" class="fixed inset-0 z-[180] bg-dark-900/98 backdrop-blur-xl" style="display:none; flex-direction:column;">
+        
+        <!-- Step 1: Scan PC QR -->
+        <div id="mobile-step-scan" style="display:flex; flex-direction:column; height:100%;">
+            <div class="flex items-center justify-between px-6 pt-8 pb-4">
+                <button onclick="app.closeMobileTransmit()" class="w-10 h-10 glass rounded-full flex items-center justify-center">
+                    <i class="ph ph-x text-lg"></i>
+                </button>
+                <div class="text-center">
+                    <p class="text-xs text-cyan-400 font-bold tracking-widest uppercase">Step 1 of 2</p>
+                    <h2 class="text-lg font-bold text-white">Scan PC QR Code</h2>
+                </div>
+                <div class="w-10"></div>
+            </div>
+
+            <p class="text-center text-gray-400 text-sm px-8 mb-4">Open CineLink on your PC, go to <strong class="text-white">Devices → Show QR</strong>, then point your camera at the code.</p>
+
+            <!-- Camera Viewfinder -->
+            <div class="mx-6 flex-1 relative rounded-2xl overflow-hidden bg-black border border-cyan-500/40 max-h-[50vh]">
+                <video id="mobile-camera-feed" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <canvas id="mobile-qr-canvas" class="hidden"></canvas>
+                
+                <!-- Scan corners -->
+                <div class="scan-corner scan-corner-tl"></div>
+                <div class="scan-corner scan-corner-tr"></div>
+                <div class="scan-corner scan-corner-bl"></div>
+                <div class="scan-corner scan-corner-br"></div>
+                
+                <!-- Scan line -->
+                <div class="absolute w-full h-0.5 bg-cyan-400 shadow-[0_0_12px_#00f0ff] animate-[scan_2s_ease-in-out_infinite] z-20"></div>
+
+                <!-- Camera off placeholder -->
+                <div id="mobile-camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-dark-900/90 z-30">
+                    <i class="ph ph-camera-slash text-5xl text-gray-600 mb-3"></i>
+                    <p class="text-gray-500 text-sm text-center px-8">Camera access needed</p>
+                    <button onclick="app.startMobileCamera()" class="mt-4 px-5 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-bold border border-cyan-500/30">
+                        <i class="ph ph-camera mr-2"></i>Enable Camera
+                    </button>
+                </div>
+
+                <!-- QR Detected Success Flash -->
+                <div id="mobile-qr-success" class="absolute inset-0 bg-green-500/20 z-40 hidden items-center justify-center">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3 pulse-ring">
+                            <i class="ph-fill ph-check text-white text-3xl"></i>
+                        </div>
+                        <p class="text-green-400 font-bold text-lg">PC Connected!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="mobile-scan-status" class="mx-6 mt-3 mb-4 p-3 rounded-xl bg-dark-800 border border-white/5 text-center">
+                <p class="text-gray-500 text-xs">Scanning for QR code...</p>
+            </div>
+
+            <!-- Manual connect / skip for demo -->
+            <div class="px-6 pb-8">
+                <button onclick="app.mobileSimulateQRSuccess()" class="w-full py-3 rounded-xl border border-white/10 text-gray-400 hover:bg-white/5 text-sm transition">
+                    <i class="ph ph-lightning mr-2 text-yellow-400"></i>Demo: Skip scan & connect
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Select & Send Files -->
+        <div id="mobile-step-send" style="display:none; flex-direction:column; height:100%;">
+            <div class="flex items-center justify-between px-6 pt-8 pb-4">
+                <button onclick="app.mobileBackToScan()" class="w-10 h-10 glass rounded-full flex items-center justify-center">
+                    <i class="ph ph-arrow-left text-lg"></i>
+                </button>
+                <div class="text-center">
+                    <p class="text-xs text-green-400 font-bold tracking-widest uppercase">Connected</p>
+                    <h2 class="text-lg font-bold text-white" id="mobile-step2-title">Send Files</h2>
+                </div>
+                <button onclick="app.closeMobileTransmit()" class="w-10 h-10 glass rounded-full flex items-center justify-center">
+                    <i class="ph ph-x text-lg"></i>
+                </button>
+            </div>
+
+            <!-- PC Connection Badge -->
+            <div class="mx-6 mb-3 px-4 py-3 rounded-xl bg-green-500/10 border border-green-500/30 flex items-center gap-3">
+                <div class="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse"></div>
+                <div>
+                    <p class="text-xs text-green-400 font-bold">Connected to PC</p>
+                    <p class="text-[11px] text-gray-400" id="mobile-pc-id">CL-SERVER-01 • Local WiFi</p>
+                </div>
+                <i class="ph-fill ph-desktop text-green-400 text-xl ml-auto"></i>
+            </div>
+
+            <!-- Tabs: Send / Browse PC -->
+            <div class="mx-6 mb-3 flex rounded-xl bg-dark-800 p-1 border border-white/5">
+                <button id="mobile-tab-send" onclick="app.mobileSwitchTab('send')" class="flex-1 py-2 rounded-lg text-xs font-bold transition bg-white/10 text-white">
+                    <i class="ph ph-upload-simple mr-1"></i> Send to PC
+                </button>
+                <button id="mobile-tab-library" onclick="app.mobileSwitchTab('library')" class="flex-1 py-2 rounded-lg text-xs font-bold transition text-gray-400">
+                    <i class="ph ph-monitor-play mr-1"></i> PC Library
+                </button>
+            </div>
+
+            <!-- TAB: Send files panel -->
+            <div id="mobile-panel-send" class="flex flex-col flex-1 overflow-hidden">
+                <!-- File Picker -->
+                <input type="file" id="mobile-file-input" multiple accept="video/*,image/*" class="hidden" onchange="app.handleMobileFilesSelected(event)">
+                <div class="px-6 mb-3">
+                    <button onclick="document.getElementById('mobile-file-input').click()" class="w-full py-3 rounded-xl border border-dashed border-cyan-500/40 bg-cyan-500/5 text-cyan-400 font-bold text-sm flex items-center justify-center gap-2 hover:bg-cyan-500/10 transition">
+                        <i class="ph ph-folder-open text-lg"></i> Pick Files from Device
+                    </button>
+                </div>
+
+                <!-- Selected Files List -->
+                <div class="px-6 flex-1 overflow-y-auto hide-scroll" id="mobile-selected-files-list">
+                    <div class="flex flex-col items-center justify-center py-10 text-gray-600">
+                        <i class="ph ph-files text-4xl mb-2 opacity-50"></i>
+                        <p class="text-sm">No files selected yet</p>
+                    </div>
+                </div>
+
+                <!-- Transfer Bar -->
+                <div class="px-6 pb-8 pt-3">
+                    <div id="mobile-transfer-progress" class="hidden mb-3 p-3 rounded-xl bg-dark-800 border border-white/10">
+                        <div class="flex justify-between text-xs mb-2">
+                            <span class="text-gray-400 truncate" id="mobile-transfer-filename">Sending...</span>
+                            <span class="text-cyan-400 font-mono ml-2" id="mobile-transfer-pct">0%</span>
+                        </div>
+                        <div class="w-full bg-dark-900 rounded-full h-2 overflow-hidden">
+                            <div id="mobile-transfer-bar" class="h-full rounded-full transfer-shimmer" style="width: 0%; transition: width 0.2s ease;"></div>
+                        </div>
+                    </div>
+                    <button id="mobile-send-btn" onclick="app.startMobileTransmission()" class="w-full py-4 rounded-xl font-bold text-dark-900 bg-gradient-to-r from-cyan-400 to-purple-500 flex items-center justify-center gap-2 opacity-50 pointer-events-none transition-all">
+                        <i class="ph ph-paper-plane-right text-xl"></i>
+                        <span id="mobile-send-label">Send to PC</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB: PC Library panel -->
+            <div id="mobile-panel-library" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+                <div class="px-6 pb-2">
+                    <p class="text-xs text-gray-500">Files loaded from this PC session. Tap to stream directly.</p>
+                </div>
+                <div id="mobile-library-list" class="px-4 flex-1 overflow-y-auto hide-scroll pb-8">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modals -->
+    
+    <!-- Sync Progress Modal -->
+    <div id="sync-progress-modal" class="fixed inset-0 z-[150] hidden items-center justify-center">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-md"></div>
+        <div class="glass border border-white/20 rounded-2xl p-8 max-w-md w-full relative z-10 flex flex-col items-center">
+            <i class="ph-fill ph-hard-drive text-5xl text-cyan-400 mb-4 animate-pulse"></i>
+            <h2 class="text-2xl font-bold mb-2">Syncing to Drive</h2>
+            <p id="sync-current-file" class="text-sm text-gray-400 mb-6 truncate w-full text-center">Preparing files...</p>
+            
+            <div class="w-full bg-dark-800 rounded-full h-3 mb-2 overflow-hidden border border-white/10 relative">
+                <div id="sync-progress-bar" class="bg-gradient-to-r from-cyan-500 to-purple-500 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+            </div>
+            
+            <div class="w-full flex justify-between text-xs text-gray-400 mb-6 font-mono">
+                <span id="sync-data-amount">0 MB / 0 MB</span>
+                <span id="sync-percentage">0%</span>
+            </div>
+            
+            <p class="text-xs text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded border border-cyan-500/20">
+                <i class="ph-fill ph-warning-circle"></i> Please do not disconnect the drive.
+            </p>
+        </div>
+    </div>
     
     <!-- Categorize Modal -->
     <div id="category-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
@@ -561,27 +906,100 @@
         </div>
     </div>
 
-    <!-- Transfer QR Modal (High-Speed Hub) -->
+    <!-- Transfer QR Modal -->
     <div id="transfer-qr-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="app.toggleModal('transfer-qr-modal')"></div>
-        <div class="glass border border-white/20 rounded-3xl p-8 max-w-sm w-full relative z-10 transform scale-95 opacity-0 transition-all duration-300" id="transfer-qr-modal-content">
+        <div class="glass border border-white/20 rounded-2xl p-8 max-w-sm w-full relative z-10 transform scale-95 opacity-0 transition-all duration-300" id="transfer-qr-modal-content">
             <button onclick="app.toggleModal('transfer-qr-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-white z-20">
                 <i class="ph ph-x text-xl"></i>
             </button>
             <div class="text-center">
-                <div class="w-16 h-16 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto mb-4">
-                    <i class="ph-fill ph-lightning text-3xl animate-pulse"></i>
-                </div>
                 <h2 class="text-2xl font-bold mb-2">Scan to Download</h2>
-                <p class="text-sm text-gray-400 mb-6">Scan this code with your phone to download <br/><span id="transfer-filename" class="text-white font-bold truncate block max-w-full mt-1">...</span></p>
-                <div class="bg-white p-4 rounded-2xl inline-block mb-6 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-                    <img id="qr-image" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CineLinkLocalTransferData" alt="QR Code" class="w-48 h-48">
+                <p class="text-sm text-gray-400 mb-6">Scan this code from another device to transfer <br/><span id="transfer-filename" class="text-white font-bold truncate block max-w-full mt-1">...</span></p>
+                <div class="bg-white p-4 rounded-xl inline-block mb-4">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CineLinkTransferData" alt="QR Code" class="w-48 h-48">
                 </div>
-                <div class="bg-green-500/10 border border-green-500/20 rounded-xl p-3 flex items-start gap-3 text-left">
-                    <i class="ph-fill ph-check-circle text-green-400 mt-0.5"></i>
-                    <p class="text-xs text-green-200/80">Local connection established. Waiting for phone to connect to stream...</p>
+                <div class="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3 text-left">
+                    <i class="ph-fill ph-info text-blue-400 mt-0.5"></i>
+                    <p class="text-xs text-blue-200/70">Files are transferred directly over your local WiFi connection.</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- QR Show Modal -->
+    <div id="qr-show-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="app.toggleModal('qr-show-modal')"></div>
+        <div class="glass border border-white/20 rounded-2xl p-8 max-w-sm w-full relative z-10 transform scale-95 opacity-0 transition-all duration-300" id="qr-show-modal-content">
+            <button onclick="app.toggleModal('qr-show-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-white z-20">
+                <i class="ph ph-x text-xl"></i>
+            </button>
+            <div class="text-center">
+                <h2 class="text-2xl font-bold mb-2">Pair Device</h2>
+                <p class="text-sm text-gray-400 mb-6">Scan this code from another CineLink instance to connect securely.</p>
+                <div class="bg-white p-4 rounded-xl inline-block mb-4">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CineLinkPairingSecret123%7CCL-SERVER-01&ecc=M" alt="QR Code" class="w-48 h-48">
+                </div>
+                <p class="text-xs font-mono text-cyan-400 bg-cyan-500/10 py-2 rounded">ID: CL-SERVER-01</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Scan Modal (with real camera) -->
+    <div id="qr-scan-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="app.closeQRScanModal()"></div>
+        <div class="glass border border-white/20 rounded-2xl p-8 max-w-md w-full relative z-10 transform scale-95 opacity-0 transition-all duration-300" id="qr-scan-modal-content">
+            <button onclick="app.closeQRScanModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white z-20">
+                <i class="ph ph-x text-xl"></i>
+            </button>
+            <div class="text-center mb-4">
+                <h2 class="text-2xl font-bold">Scan QR Code</h2>
+                <p class="text-sm text-gray-400">Point your camera at a CineLink QR code to receive files.</p>
+            </div>
+
+            <!-- Real camera viewfinder -->
+            <div class="relative w-full aspect-square bg-black rounded-xl overflow-hidden border-2 border-cyan-500/70">
+                <video id="qr-camera-feed" autoplay playsinline muted class="w-full h-full object-cover" style="transform: scaleX(-1);"></video>
+                <canvas id="qr-scan-canvas" class="hidden"></canvas>
+
+                <!-- Corner markers -->
+                <div class="scan-corner scan-corner-tl"></div>
+                <div class="scan-corner scan-corner-tr"></div>
+                <div class="scan-corner scan-corner-bl"></div>
+                <div class="scan-corner scan-corner-br"></div>
+
+                <!-- Scan line -->
+                <div class="absolute w-full h-0.5 bg-cyan-400 shadow-[0_0_15px_#00f0ff] animate-[scan_2s_ease-in-out_infinite] z-20"></div>
+
+                <!-- Camera off state -->
+                <div id="qr-camera-off" class="absolute inset-0 bg-dark-900/95 flex flex-col items-center justify-center z-30">
+                    <i class="ph ph-camera text-5xl text-gray-600 mb-3"></i>
+                    <p class="text-gray-500 text-sm mb-4">Camera not active</p>
+                    <button onclick="app.startQRCamera()" class="px-5 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-bold border border-cyan-500/30 hover:bg-cyan-500/30 transition">
+                        <i class="ph ph-camera mr-2"></i>Start Camera
+                    </button>
+                </div>
+
+                <!-- QR Detected overlay -->
+                <div id="qr-detected-flash" class="absolute inset-0 bg-green-500/20 z-40 hidden items-center justify-center">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2 pulse-ring">
+                            <i class="ph-fill ph-check text-white text-3xl"></i>
+                        </div>
+                        <p class="text-green-400 font-bold">QR Detected!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div id="qr-scan-status" class="mt-3 p-3 rounded-xl bg-dark-800 border border-white/5 text-center text-xs text-gray-500">
+                Waiting for camera...
+            </div>
+
+            <button onclick="app.simulatePhoneTransfer()" class="w-full mt-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition text-sm font-bold flex items-center justify-center gap-2">
+                <i class="ph ph-download-simple"></i> Simulate Successful Transfer
+            </button>
+            <button onclick="app.closeQRScanModal()" class="w-full mt-2 py-3 rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 hover:text-white transition">Cancel</button>
         </div>
     </div>
 
@@ -590,105 +1008,154 @@
         const app = {
             currentView: 'dashboard',
             
+            // State to store actual files selected by user
             state: {
                 videos: [], 
                 tempPendingFiles: null,
                 isSelectionMode: false,
                 selectedIds: [],
-                lastView: 'dashboard'
+                lastView: 'dashboard',
+                receivedFiles: [],
+                selectedReceivedIds: [],
+                wiredDrives: [],
+                isMobile: false,
+                mobileSelectedFiles: []
             },
 
+            // Helper to generate a thumbnail from a video URL
             generateThumbnail(fileUrl) {
                 return new Promise((resolve) => {
                     const video = document.createElement('video');
                     video.src = fileUrl;
                     video.muted = true;
                     video.playsInline = true;
+                    
+                    // Handle errors (e.g. unsupported codec)
                     video.addEventListener('error', () => resolve(null));
+
                     video.addEventListener('loadeddata', () => {
+                        // Seek to 2 seconds or halfway if video is very short
                         video.currentTime = video.duration < 2 ? video.duration / 2 : 2;
                     });
+
                     video.addEventListener('seeked', () => {
                         try {
                             const canvas = document.createElement('canvas');
-                            canvas.width = 640;
-                            canvas.height = 360;
-                            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-                            resolve(canvas.toDataURL('image/jpeg', 0.6));
+                            canvas.width = video.videoWidth || 640;
+                            canvas.height = video.videoHeight || 360;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.6)); // 0.6 quality for memory efficiency
                         } catch (e) {
+                            console.error("Failed to extract thumbnail", e);
                             resolve(null);
                         }
                     });
                 });
             },
 
+            // Helper to find common show name from episodes
             getCommonPrefix(names) {
                 if (!names || names.length === 0) return "Series Collection";
                 if (names.length === 1) return names[0].replace(/\.[^/.]+$/, "");
+                
                 const sorted = names.slice().sort();
                 const first = sorted[0];
                 const last = sorted[sorted.length - 1];
                 let i = 0;
                 while (i < first.length && first.charAt(i) === last.charAt(i)) i++;
+                
                 let prefix = first.substring(0, i);
+                // Strip S01E01, EP01, or trailing hyphens/spaces
                 prefix = prefix.replace(/(s\d+e?\d*|ep?\d+|-\s*\d+).*/i, '').replace(/[-_.\s]+$/, '');
-                return prefix.length < 3 ? "Series Collection" : prefix;
+                
+                if (prefix.length < 3) return "Series Collection";
+                return prefix;
             },
 
+            // Helper to recursively find a media item (single file or specific episode)
             findMedia(id) {
                 for (const v of this.state.videos) {
                     if (v.id === id) return v;
                     if (v.episodes) {
                         const ep = v.episodes.find(e => e.id === id);
-                        if (ep) return { ...ep, category: v.category };
+                        if (ep) return { ...ep, category: v.category }; // Enqueue parent category
                     }
                 }
                 return null;
             },
             
             init() {
+                // Detect device type
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                                 (window.innerWidth <= 768 && 'ontouchstart' in window);
+                this.state.isMobile = isMobile;
+
+                // Show appropriate welcome screen variant
+                if (isMobile) {
+                    document.getElementById('welcome-desktop').classList.add('hidden');
+                    document.getElementById('welcome-mobile').classList.remove('hidden');
+                }
+
+                // Check if user has granted access / added files
                 if (this.state.videos.length === 0) {
                     document.getElementById('welcome-screen').classList.remove('hidden');
                 } else {
                     this.renderDashboard();
                 }
+
+                // Update mobile bottom nav active state on view switch
+                this.updateMobileNav();
+
+                // Listen for files transmitted FROM phone via BroadcastChannel
+                this.setupBroadcastReceiver();
             },
 
+            // --- File Handling & Categories ---
+            
             handleFilesSelected(event) {
                 const files = event.target.files;
                 if (!files || files.length === 0) return;
                 
+                // Hide welcome screen if it's visible
                 const welcomeScreen = document.getElementById('welcome-screen');
                 if(!welcomeScreen.classList.contains('hidden')) {
                     welcomeScreen.classList.add('opacity-0');
                     setTimeout(() => welcomeScreen.classList.add('hidden'), 500);
                 }
 
+                // Store temporarily and show category modal
                 this.state.tempPendingFiles = Array.from(files);
-                const uploadCountEl = document.getElementById('upload-count');
-                if(uploadCountEl) uploadCountEl.innerText = files.length;
+                document.getElementById('upload-count').innerText = files.length;
                 
                 document.getElementById('category-modal').classList.remove('hidden');
                 document.getElementById('category-modal').classList.add('flex');
+                
+                // Reset file input so same files can be selected again if needed
                 event.target.value = '';
             },
 
             async confirmUpload(category) {
                 if (!this.state.tempPendingFiles) return;
                 
-                const modalTitle = document.querySelector('#category-modal h2');
-                if(modalTitle) modalTitle.innerText = "Processing...";
+                // UI Feedback for Processing
+                document.querySelector('#category-modal h2').innerText = "Processing...";
+                const buttons = document.querySelectorAll('#category-modal button');
+                buttons.forEach(btn => { btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; });
                 
                 const colors = ['#00f0ff', '#ff00ff', '#8a2be2', '#00ff00', '#ff4d00', '#e24329'];
 
                 if (category === 'Series') {
+                    // Group batch into one Series collection sorted chronologically
                     const files = this.state.tempPendingFiles.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
+                    
                     const totalSize = files.reduce((acc, file) => acc + file.size, 0);
-                    const sizeStr = (totalSize / (1024 * 1024)).toFixed(1) + ' MB';
+                    const sizeStr = (totalSize / (1024 * 1024)).toFixed(2) + ' MB';
                     const title = this.getCommonPrefix(files.map(f => f.name));
                     const id = 's_' + Math.random().toString(36).substr(2, 9);
                     const randColor = colors[Math.floor(Math.random() * colors.length)];
 
+                    // Process episodes and generate thumbnails asynchronously
                     const episodes = await Promise.all(files.map(async (file, idx) => {
                         const url = URL.createObjectURL(file);
                         const thumb = await this.generateThumbnail(url);
@@ -696,7 +1163,7 @@
                             id: id + '_ep_' + idx,
                             seriesId: id,
                             title: file.name.replace(/\.[^/.]+$/, ""),
-                            size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+                            size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
                             type: file.type || 'video/mp4',
                             url: url,
                             thumbnailUrl: thumb
@@ -710,11 +1177,12 @@
                         size: sizeStr,
                         type: 'series',
                         color: randColor,
-                        url: episodes[0].url,
-                        thumbnailUrl: episodes[0].thumbnailUrl,
+                        url: episodes[0].url, // Hero plays first episode in bg
+                        thumbnailUrl: episodes[0].thumbnailUrl, // Use first episode's thumb for the series cover
                         episodes: episodes
                     });
                 } else {
+                    // Process non-series individually
                     const newVideos = await Promise.all(this.state.tempPendingFiles.map(async file => {
                         const id = 'v_' + Math.random().toString(36).substr(2, 9);
                         const randColor = colors[Math.floor(Math.random() * colors.length)];
@@ -726,7 +1194,7 @@
                             file: file,
                             title: file.name,
                             category: category,
-                            size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+                            size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
                             type: file.type || 'video/mp4',
                             color: randColor,
                             url: url,
@@ -737,15 +1205,25 @@
                 }
 
                 this.state.tempPendingFiles = null;
-                if(modalTitle) modalTitle.innerText = "Categorize Media";
-                this.toggleModal('category-modal');
+                
+                // Restore UI Feedback
+                document.querySelector('#category-modal h2').innerText = "Categorize Media";
+                buttons.forEach(btn => { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; });
+                
+                // Close Modal
+                document.getElementById('category-modal').classList.add('hidden');
+                document.getElementById('category-modal').classList.remove('flex');
+                
+                // Re-render UI
                 this.renderDashboard();
-                this.switchView('dashboard');
             },
 
             cancelUpload() {
                 this.state.tempPendingFiles = null;
-                this.toggleModal('category-modal');
+                document.getElementById('category-modal').classList.add('hidden');
+                document.getElementById('category-modal').classList.remove('flex');
+                
+                // If cancelled from welcome screen, show it again
                 if (this.state.videos.length === 0) {
                     const welcomeScreen = document.getElementById('welcome-screen');
                     welcomeScreen.classList.remove('hidden');
@@ -753,15 +1231,17 @@
                 }
             },
 
+            // --- UI Rendering ---
+
             renderDashboard() {
                 const container = document.getElementById('rows-container');
-                if(!container) return;
                 container.innerHTML = '';
                 
+                // Adjust Hero (Netflix Style)
                 const hero = document.getElementById('dashboard-hero');
                 if (this.state.videos.length > 0) {
-                    const featured = this.state.videos[0];
-                    const cleanTitle = featured.title.replace(/\.[^/.]+$/, "");
+                    const featured = this.state.videos[0]; // Feature the first uploaded video
+                    const cleanTitle = featured.title.replace(/\.[^/.]+$/, ""); // Remove file extension
                     
                     hero.style.height = '75vh';
                     hero.style.minHeight = '500px';
@@ -770,11 +1250,14 @@
                     const sizeOrEpsText = featured.episodes ? `${featured.episodes.length} Episodes` : featured.size;
 
                     hero.innerHTML = `
+                        <!-- Background Video Preview -->
                         <div class="absolute inset-0 overflow-hidden bg-dark-900">
                             <video src="${featured.url}" poster="${featured.thumbnailUrl || ''}" autoplay loop muted playsinline class="w-full h-full object-cover opacity-50"></video>
                             <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/60 to-transparent z-10"></div>
                             <div class="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/40 to-transparent z-10"></div>
                         </div>
+                        
+                        <!-- Featured Content -->
                         <div class="relative z-20 max-w-3xl">
                             <div class="flex items-center gap-2 mb-3">
                                 <span class="text-cyan-400 font-bold tracking-[0.2em] text-xs uppercase flex items-center">
@@ -789,7 +1272,7 @@
                                 <span>${sizeOrEpsText}</span>
                             </div>
                             <p class="text-gray-300 text-sm md:text-base max-w-2xl mb-8 line-clamp-3 drop-shadow-lg">
-                                Locally hosted file directly served from your storage disk. Completely private streaming.
+                                Locally hosted file directly served from your storage disk. This media is completely private and requires no internet connection to stream across your devices.
                             </p>
                             <div class="flex items-center gap-4">
                                 <button onclick="app.playVideo('${featured.id}')" class="bg-white text-black px-8 py-3 rounded-lg text-lg font-bold flex items-center gap-3 hover:bg-gray-200 transition">
@@ -802,6 +1285,7 @@
                         </div>
                     `;
                 } else {
+                    // Reset to empty state
                     hero.style.height = '40vh';
                     hero.style.minHeight = '300px';
                     hero.className = 'relative w-full h-[40vh] min-h-[300px] flex flex-col items-center justify-center text-center px-6 transition-all duration-700';
@@ -809,115 +1293,179 @@
                         <div class="absolute inset-0 bg-gradient-to-t from-dark-900 to-transparent z-10 pointer-events-none"></div>
                         <i class="ph ph-film-strip text-6xl text-white/10 mb-4 z-20"></i>
                         <h2 class="text-3xl font-bold mb-2 z-20">Your Local Library</h2>
-                        <p class="text-gray-400 z-20 max-w-md">Upload and categorize your files to begin.</p>
+                        <p class="text-gray-400 z-20 max-w-md">Upload and categorize your files to populate your private media server.</p>
                     `;
                 }
 
+                // Group by categories
                 const categories = ['Movies', 'Series', 'Music Videos'];
+                
                 categories.forEach(cat => {
                     const catVideos = this.state.videos.filter(v => v.category === cat);
+                    
                     if (catVideos.length > 0) {
                         const rowHtml = `
                             <div class="mb-4">
-                                <h2 class="text-xl font-bold mb-4 text-white/90 drop-shadow-md">${cat}</h2>
-                                <div class="flex gap-4 overflow-x-auto hide-scroll pb-6" id="scroll-row-${cat.replace(/\s+/g, '')}">
+                                <h2 class="text-xl font-bold mb-4 text-white/90 drop-shadow-md flex items-center gap-2">
+                                    ${cat}
+                                </h2>
+                                <div class="flex gap-4 overflow-x-auto hide-scroll pb-6 snap-x snap-mandatory scroll-smooth" id="scroll-row-${cat.replace(/\s+/g, '')}">
                                     ${catVideos.map(vid => this.createCardHtml(vid)).join('')}
                                 </div>
                             </div>
                         `;
                         container.insertAdjacentHTML('beforeend', rowHtml);
+
+                        // Horizontal scroll with mouse wheel
+                        setTimeout(() => {
+                            const rowEl = document.getElementById(`scroll-row-${cat.replace(/\s+/g, '')}`);
+                            if(rowEl) {
+                                rowEl.addEventListener('wheel', (evt) => {
+                                    evt.preventDefault();
+                                    rowEl.scrollLeft += evt.deltaY;
+                                });
+                            }
+                        }, 0);
                     }
                 });
             },
 
             createCardHtml(vid) {
+                // Using generic placeholders since generating real video thumbnails in browser is resource intensive
+                let iconClass = 'ph-film-strip';
+                if(vid.category === 'Movies') iconClass = 'ph-film-slate';
+                if(vid.category === 'Series') iconClass = 'ph-television';
+                if(vid.category === 'Music Videos') iconClass = 'ph-music-notes';
+
                 const isSelected = this.state.selectedIds.includes(vid.id);
                 const selectionRing = isSelected ? 'ring-4 ring-cyan-500 ring-offset-2 ring-offset-dark-900 scale-[0.98]' : '';
+                const checkmark = isSelected ? `
+                    <div class="absolute top-3 left-3 z-30 w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center shadow-lg">
+                        <i class="ph-bold ph-check text-dark-900 text-sm"></i>
+                    </div>
+                ` : '';
+
                 const sizeOrEps = vid.episodes ? `${vid.episodes.length} EPS` : vid.size;
+                
                 const thumbnailImg = vid.thumbnailUrl 
-                    ? `<img src="${vid.thumbnailUrl}" class="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition duration-500 z-[5]">`
+                    ? `<img src="${vid.thumbnailUrl}" class="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition duration-500 z-[5]" alt="${vid.title}">`
                     : '';
 
                 return `
                     <div class="vortex-card cursor-pointer snap-start flex-none w-[280px] md:w-[320px] group transition-all duration-200 ${selectionRing}" 
-                         onclick="app.handleCardClick('${vid.id}')">
+                         style="--hover-glow: ${vid.color}40;"
+                         onclick="app.handleCardClick('${vid.id}')"
+                         id="card-${vid.id}">
+                        
                         <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-dark-800 border border-white/10 flex items-center justify-center">
+                            ${checkmark}
+                            <!-- Placeholder gradient background based on color -->
                             <div class="absolute inset-0 opacity-20 z-0" style="background: linear-gradient(135deg, ${vid.color}, transparent);"></div>
+                            
+                            <!-- Generated Video Thumbnail -->
                             ${thumbnailImg}
+                            
+                            <i class="ph ${iconClass} text-5xl text-white/40 group-hover:scale-110 transition duration-500 z-10 ${vid.thumbnailUrl ? 'hidden' : ''}"></i>
+                            
                             <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-90 z-10"></div>
+                            
+                            <!-- Play Icon Overlay -->
                             <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
                                 <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
                                     <i class="ph-fill ph-play text-white text-xl"></i>
                                 </div>
                             </div>
+
                             <div class="absolute bottom-3 left-3 right-3 flex justify-between items-end z-20">
-                                <h4 class="font-semibold text-sm truncate pr-2">${vid.title}</h4>
-                                <span class="bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-mono">${sizeOrEps}</span>
+                                <h4 class="font-semibold text-sm truncate pr-2" style="text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${vid.title}</h4>
+                                <span class="bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap">${sizeOrEps}</span>
                             </div>
                         </div>
                     </div>
                 `;
             },
 
+            // --- Logic & Interactions ---
+
             switchView(viewName) {
+                // Stop video if leaving player
                 if(this.currentView === 'player' && viewName !== 'player') {
                     const videoEl = document.getElementById('real-video-player');
                     videoEl.pause();
                 }
+
+                // Stop QR cameras when leaving transfer view
+                if (this.currentView === 'transfer' && viewName !== 'transfer') {
+                    this.stopCamera('transfer-view-camera');
+                }
+
+                // Store last view for the player's back button
                 if (this.currentView !== 'player' && viewName === 'player') {
                     this.state.lastView = this.currentView;
                 }
+
                 this.currentView = viewName;
                 document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
                 
+                // Highlight active desktop nav item
                 document.querySelectorAll('nav a').forEach(el => {
                     el.classList.remove('bg-white/10', 'text-white');
                     el.classList.add('text-gray-400');
                 });
                 
-                const activeEl = document.querySelector(`nav a[onclick*="${viewName}"]`);
+                const activeEl = document.querySelector(`nav a[onclick="app.switchView('${viewName}')"]`);
                 if(activeEl) {
                     activeEl.classList.add('bg-white/10', 'text-white');
                     activeEl.classList.remove('text-gray-400');
                 }
-                const target = document.getElementById(`view-${viewName}`);
-                if(target) target.classList.add('active');
+
+                document.getElementById(`view-${viewName}`).classList.add('active');
+                this.updateMobileNav(viewName);
             },
 
             toggleSelectionMode() {
                 this.state.isSelectionMode = !this.state.isSelectionMode;
                 const btn = document.getElementById('selection-toggle-btn');
                 const fab = document.getElementById('multi-select-fab');
+                
                 if (this.state.isSelectionMode) {
                     btn.classList.add('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/50');
+                    btn.classList.remove('text-gray-400');
+                    // Show FAB
                     fab.classList.remove('translate-y-24', 'opacity-0', 'pointer-events-none');
                 } else {
                     btn.classList.remove('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/50');
+                    btn.classList.add('text-gray-400');
                     this.clearSelection();
+                    // Hide FAB
                     fab.classList.add('translate-y-24', 'opacity-0', 'pointer-events-none');
                 }
             },
 
             toggleSelection(id) {
                 const index = this.state.selectedIds.indexOf(id);
-                if (index === -1) this.state.selectedIds.push(id);
-                else this.state.selectedIds.splice(index, 1);
+                if (index === -1) {
+                    this.state.selectedIds.push(id);
+                } else {
+                    this.state.selectedIds.splice(index, 1);
+                }
                 
-                const countEl = document.getElementById('selected-count');
-                if(countEl) countEl.innerText = this.state.selectedIds.length;
-                this.renderDashboard();
+                document.getElementById('selected-count').innerText = this.state.selectedIds.length;
+                this.renderDashboard(); // Re-render to show/hide selection rings
             },
 
             clearSelection() {
                 this.state.selectedIds = [];
-                const countEl = document.getElementById('selected-count');
-                if(countEl) countEl.innerText = '0';
+                document.getElementById('selected-count').innerText = '0';
                 this.renderDashboard();
             },
 
             handleCardClick(id) {
-                if (this.state.isSelectionMode) this.toggleSelection(id);
-                else this.showDetails(id);
+                if (this.state.isSelectionMode) {
+                    this.toggleSelection(id);
+                } else {
+                    this.showDetails(id);
+                }
             },
 
             showDetails(id) {
@@ -930,15 +1478,18 @@
                 document.getElementById('details-category').innerText = vid.category;
                 document.getElementById('details-tag-category').innerText = vid.category;
                 document.getElementById('details-size').innerText = vid.episodes ? `${vid.episodes.length} Episodes` : vid.size;
-                document.getElementById('details-filename').innerText = vid.title;
+                document.getElementById('details-filename').innerText = vid.episodes ? `${vid.episodes.length} files bundled` : vid.title;
                 document.getElementById('details-type').innerText = vid.type;
                 
+                // Set background video preview
                 document.getElementById('details-bg-container').innerHTML = `
                     <video src="${vid.url}" poster="${vid.thumbnailUrl || ''}" autoplay loop muted playsinline class="w-full h-full object-cover opacity-50"></video>
                 `;
                 
+                // Bind buttons
                 document.getElementById('details-play-btn').onclick = () => app.playVideo(vid.id);
 
+                // Setup Episodes Section if Series
                 const epsContainer = document.getElementById('details-episodes-container');
                 if (vid.episodes && vid.episodes.length > 0) {
                     epsContainer.innerHTML = `
@@ -958,7 +1509,7 @@
                                             <p class="text-xs text-gray-400">${ep.size}</p>
                                         </div>
                                     </div>
-                                    <button class="text-gray-500 hover:text-cyan-400 p-2 flex-shrink-0" onclick="event.stopPropagation(); app.showTransferQR(false, '${ep.id}')">
+                                    <button class="text-gray-500 hover:text-cyan-400 p-2 flex-shrink-0" onclick="event.stopPropagation(); app.showTransferQR(false, '${ep.id}')" title="Send via QR">
                                         <i class="ph ph-qr-code text-xl"></i>
                                     </button>
                                 </div>
@@ -968,6 +1519,7 @@
                     epsContainer.classList.remove('hidden');
                     epsContainer.classList.add('flex');
                 } else {
+                    epsContainer.innerHTML = '';
                     epsContainer.classList.add('hidden');
                     epsContainer.classList.remove('flex');
                 }
@@ -982,47 +1534,933 @@
             playVideo(id) {
                 const vid = this.findMedia(id);
                 if (!vid) return;
+                
+                // Update Player UI
                 const videoEl = document.getElementById('real-video-player');
-                videoEl.src = vid.url;
+                videoEl.src = vid.url; // Use local object URL
+                
                 document.getElementById('player-title').innerText = vid.title;
-                document.getElementById('player-category').innerText = vid.category || 'Media';
-                document.getElementById('player-size').innerText = vid.size;
-                document.getElementById('player-type').innerText = vid.type;
+                document.getElementById('player-category').innerText = vid.category || 'Local Media';
+                document.getElementById('player-size').innerText = `• ${vid.size}`;
+                document.getElementById('player-type').innerText = `• ${vid.type}`;
+                
+                // Store active video id for external device sending
                 videoEl.dataset.activeId = id;
+                
                 this.switchView('player');
                 videoEl.play();
             },
 
             showTransferQR(isMulti = false, forceId = null) {
-                const label = document.getElementById('transfer-filename');
                 if (isMulti) {
-                    if(label) label.innerText = `${this.state.selectedIds.length} Selected Items`;
+                    if (this.state.selectedIds.length === 0) return;
+                    document.getElementById('transfer-filename').innerText = `${this.state.selectedIds.length} Selected Items`;
                 } else if (forceId) {
                     const vid = this.findMedia(forceId);
-                    if(label) label.innerText = vid ? vid.title : 'Selected File';
+                    document.getElementById('transfer-filename').innerText = vid ? vid.title : 'Selected File';
+                    document.getElementById('real-video-player').dataset.activeId = forceId;
                 } else {
                     const activeId = document.getElementById('real-video-player').dataset.activeId;
                     const vid = this.findMedia(activeId);
-                    if(label) label.innerText = vid ? vid.title : 'Selected File';
+                    document.getElementById('transfer-filename').innerText = vid ? vid.title : 'Selected File';
                 }
+
+                // Generate a real scannable QR code containing CineLink pairing data
+                const pairingData = encodeURIComponent('CineLinkPairingSecret123|CL-SERVER-01');
+                const qrImg = document.querySelector('#transfer-qr-modal-content img');
+                if (qrImg) {
+                    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pairingData}&ecc=M`;
+                }
+                // Also update the QR Show Modal
+                const showQrImg = document.querySelector('#qr-show-modal-content img');
+                if (showQrImg) {
+                    showQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pairingData}&ecc=M`;
+                }
+
                 this.toggleModal('transfer-qr-modal');
             },
 
+            // --- Wired Sync & Real Storage Disks Logic ---
+            
+            simulatePhoneTransfer() {
+                this.toggleModal('qr-scan-modal');
+                // Create a mock received file
+                const newId = 'recv_' + Date.now();
+                const randomNum = Math.floor(Math.random() * 9000) + 1000;
+                this.state.receivedFiles.push({
+                    id: newId,
+                    name: `Mobile_Upload_IMG_${randomNum}.mp4`,
+                    size: Math.floor(Math.random() * 500 + 50) + ' MB',
+                    time: 'Just now'
+                });
+                
+                // Automatically select the new file
+                this.state.selectedReceivedIds.push(newId);
+                
+                this.renderReceivedFiles();
+                this.switchView('wired-sync');
+            },
+
+            toggleReceivedFile(id) {
+                const index = this.state.selectedReceivedIds.indexOf(id);
+                if (index === -1) {
+                    this.state.selectedReceivedIds.push(id);
+                } else {
+                    this.state.selectedReceivedIds.splice(index, 1);
+                }
+                this.renderReceivedFiles();
+            },
+
+            renderReceivedFiles() {
+                const list = document.getElementById('received-files-list');
+                const badge = document.getElementById('received-count-badge');
+                
+                if (this.state.receivedFiles.length === 0) {
+                    list.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-12 text-gray-500">
+                            <i class="ph ph-tray text-4xl mb-2 opacity-50"></i>
+                            <p class="text-sm">No files received from mobile yet.</p>
+                        </div>
+                    `;
+                    badge.classList.add('hidden');
+                } else {
+                    badge.innerText = `${this.state.receivedFiles.length} Item(s)`;
+                    badge.classList.remove('hidden');
+                    
+                    list.innerHTML = this.state.receivedFiles.map(file => {
+                        const isChecked = this.state.selectedReceivedIds.includes(file.id);
+                        return `
+                            <label class="cursor-pointer bg-dark-800 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:bg-white/5 transition">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded bg-cyan-500/20 flex items-center justify-center">
+                                        <i class="ph-fill ph-file-video text-cyan-400 text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-sm text-white">${file.name}</h4>
+                                        <p class="text-xs text-gray-400">Received ${file.time} • ${file.size}</p>
+                                    </div>
+                                </div>
+                                <input type="checkbox" onchange="app.toggleReceivedFile('${file.id}')" class="w-5 h-5 accent-cyan-500 rounded border-white/20 bg-dark-900 cursor-pointer" ${isChecked ? 'checked' : ''}>
+                            </label>
+                        `;
+                    }).join('');
+                }
+                this.updateSyncButtonState();
+            },
+
+            async addLocalDrive() {
+                try {
+                    // Use the File System Access API to pick a real local directory
+                    if (!window.showDirectoryPicker) {
+                        alert("Your browser doesn't support the File System Access API required to write directly to disks. Please use a modern Chromium browser on Desktop.");
+                        return;
+                    }
+                    
+                    // Request directory handle from user
+                    const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                    
+                    // Add to our tracked drives
+                    const driveId = 'drive_' + Date.now();
+                    this.state.wiredDrives.push({
+                        id: driveId,
+                        handle: dirHandle,
+                        name: dirHandle.name
+                    });
+                    
+                    this.renderWiredDrives();
+                    
+                    // Automatically select the newly added drive
+                    setTimeout(() => {
+                        const radio = document.getElementById(driveId);
+                        if (radio) {
+                            radio.checked = true;
+                            this.updateSyncButtonState();
+                        }
+                    }, 50);
+
+                } catch (err) {
+                    console.log('User cancelled or API error:', err);
+                }
+            },
+
+            renderWiredDrives() {
+                const list = document.getElementById('wired-drives-list');
+                
+                if (this.state.wiredDrives.length === 0) {
+                    list.innerHTML = `<div class="text-center text-gray-500 py-4 text-xs">No physical drives mapped.</div>`;
+                } else {
+                    list.innerHTML = this.state.wiredDrives.map(drive => `
+                        <label class="block cursor-pointer">
+                            <input type="radio" name="wired_drive" id="${drive.id}" value="${drive.id}" class="hidden peer" onchange="app.updateSyncButtonState()">
+                            <div class="bg-dark-800 p-4 rounded-xl border border-white/5 peer-checked:border-cyan-500 peer-checked:bg-cyan-500/10 transition flex items-center justify-between group">
+                                <div class="flex items-center gap-3">
+                                    <i class="ph-fill ph-hard-drive text-2xl text-gray-400 peer-checked:text-cyan-400"></i>
+                                    <div>
+                                        <h4 class="font-bold text-sm text-white">Mapped: ${drive.name}</h4>
+                                        <p class="text-xs text-gray-400">Local Directory</p>
+                                    </div>
+                                </div>
+                                <i class="ph-fill ph-check-circle text-cyan-400 opacity-0 peer-checked:opacity-100 transition"></i>
+                            </div>
+                        </label>
+                    `).join('');
+                }
+                this.updateSyncButtonState();
+            },
+
+            updateSyncButtonState() {
+                const btn = document.getElementById('sync-btn');
+                const hasDrive = document.querySelector('input[name="wired_drive"]:checked');
+                const hasFiles = this.state.selectedReceivedIds.length > 0;
+
+                if (hasDrive && hasFiles) {
+                    btn.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    btn.classList.add('opacity-50', 'pointer-events-none');
+                }
+            },
+
+            async startWiredSync() {
+                const selectedDriveId = document.querySelector('input[name="wired_drive"]:checked')?.value;
+                if (!selectedDriveId) return alert("Please map and select a destination drive.");
+                if (this.state.selectedReceivedIds.length === 0) return alert("Please select files to sync.");
+
+                const drive = this.state.wiredDrives.find(d => d.id === selectedDriveId);
+                const filesToSync = this.state.receivedFiles.filter(f => this.state.selectedReceivedIds.includes(f.id));
+
+                // UI setup for progress modal
+                const modal = document.getElementById('sync-progress-modal');
+                const fileLabel = document.getElementById('sync-current-file');
+                const progressBar = document.getElementById('sync-progress-bar');
+                const dataAmount = document.getElementById('sync-data-amount');
+                const percentage = document.getElementById('sync-percentage');
+                
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                progressBar.classList.remove('from-green-400', 'to-green-500'); // reset colors
+                progressBar.classList.add('from-cyan-500', 'to-purple-500');
+
+                try {
+                    // Try to use the real File System Access API to write the files
+                    for (let i = 0; i < filesToSync.length; i++) {
+                        const file = filesToSync[i];
+                        fileLabel.innerText = `Copying (${i+1}/${filesToSync.length}): ${file.name}`;
+                        
+                        // Parse fake size to a number (MB)
+                        const totalMB = parseFloat(file.size) || 150; 
+                        let currentMB = 0;
+
+                        // Create a file handle inside the user's mapped directory
+                        const fileHandle = await drive.handle.getFileHandle(file.name, { create: true });
+                        // Create a writable stream
+                        const writable = await fileHandle.createWritable();
+
+                        // Simulate chunk writing over time for the UI visual
+                        await new Promise(resolve => {
+                            const interval = setInterval(() => {
+                                // Add random chunk size (10-30 MB per tick) to simulate transfer speed
+                                currentMB += Math.random() * 20 + 10;
+                                if (currentMB >= totalMB) currentMB = totalMB;
+                                
+                                const pct = Math.round((currentMB / totalMB) * 100);
+                                progressBar.style.width = `${pct}%`;
+                                percentage.innerText = `${pct}%`;
+                                dataAmount.innerText = `${currentMB.toFixed(1)} MB / ${totalMB.toFixed(1)} MB`;
+
+                                if (currentMB >= totalMB) {
+                                    clearInterval(interval);
+                                    resolve();
+                                }
+                            }, 150); // Updates every 150ms
+                        });
+
+                        // Actually write the dummy data to disk via the stream
+                        const dummyContent = new Blob([`Dummy data representing ${file.size} of video for ${file.name}`], { type: 'text/plain' });
+                        await writable.write(dummyContent);
+                        // Close the file to safely save it to disk
+                        await writable.close();
+                    }
+
+                    // On complete success
+                    fileLabel.innerText = "Sync Complete!";
+                    progressBar.classList.remove('from-cyan-500', 'to-purple-500');
+                    progressBar.classList.add('from-green-400', 'to-green-500');
+                    
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        progressBar.style.width = '0%';
+                        
+                        // Remove synced files from incoming list
+                        this.state.receivedFiles = this.state.receivedFiles.filter(f => !this.state.selectedReceivedIds.includes(f.id));
+                        this.state.selectedReceivedIds = [];
+                        this.renderReceivedFiles();
+                    }, 1500);
+
+                } catch (err) {
+                    console.error("File writing failed:", err);
+                    alert("Sync failed or permission was denied by the system. Make sure you selected a writable folder.");
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            },
+
+            // ── Device & Nav helpers ──────────────────────────────────────────
+
+            updateMobileNav(viewName) {
+                const name = viewName || this.currentView;
+                document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+                    const v = btn.dataset.view;
+                    if (v === name) {
+                        btn.classList.add('text-cyan-400');
+                        btn.classList.remove('text-gray-400');
+                    } else {
+                        btn.classList.remove('text-cyan-400');
+                        btn.classList.add('text-gray-400');
+                    }
+                });
+            },
+
+            dismissWelcome() {
+                const ws = document.getElementById('welcome-screen');
+                ws.classList.add('opacity-0');
+                setTimeout(() => ws.classList.add('hidden'), 500);
+                this.renderDashboard();
+            },
+
+            // ── Real Camera helpers ────────────────────────────────────────────
+
+            _cameraErrorMsg(err) {
+                if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                    return { type: 'https', text: 'Camera requires HTTPS. Open this page over https:// or on localhost.' };
+                }
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    return { type: 'api', text: 'Your browser does not support camera access. Try Chrome or Safari.' };
+                }
+                const name = (err && err.name) || '';
+                if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+                    return { type: 'denied', text: 'Camera permission denied. Tap the camera icon in your browser address bar to allow access, then try again.' };
+                }
+                if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+                    return { type: 'notfound', text: 'No camera found on this device.' };
+                }
+                if (name === 'NotReadableError' || name === 'TrackStartError') {
+                    return { type: 'inuse', text: 'Camera is in use by another app. Close it and try again.' };
+                }
+                return { type: 'unknown', text: 'Camera unavailable: ' + (err ? err.message : 'unknown error') };
+            },
+
+            async startCamera(videoElId) {
+                if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                    return { stream: null, error: this._cameraErrorMsg(null) };
+                }
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    return { stream: null, error: this._cameraErrorMsg(null) };
+                }
+                const constraints = [
+                    { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } } },
+                    { video: { facingMode: 'environment' } },
+                    { video: true }
+                ];
+                let lastErr = null;
+                for (const c of constraints) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia(c);
+                        const videoEl = document.getElementById(videoElId);
+                        if (!videoEl) { stream.getTracks().forEach(t => t.stop()); return { stream: null, error: { type: 'dom', text: 'Video element not found.' } }; }
+                        videoEl.srcObject = stream;
+                        videoEl.style.display = 'block';
+                        await new Promise((res, rej) => {
+                            videoEl.onloadedmetadata = res;
+                            videoEl.onerror = rej;
+                            setTimeout(res, 3000); // safety timeout
+                        });
+                        videoEl.play().catch(() => {});
+                        return { stream, error: null };
+                    } catch (e) {
+                        lastErr = e;
+                        // If permission denied, no point trying other constraints
+                        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') break;
+                    }
+                }
+                return { stream: null, error: this._cameraErrorMsg(lastErr) };
+            },
+
+            stopCamera(videoElId) {
+                const videoEl = document.getElementById(videoElId);
+                if (videoEl && videoEl.srcObject) {
+                    videoEl.srcObject.getTracks().forEach(t => t.stop());
+                    videoEl.srcObject = null;
+                    videoEl.style.display = 'none';
+                }
+                if (this._qrScanInterval) { clearInterval(this._qrScanInterval); this._qrScanInterval = null; }
+                if (this._mobileScanInterval) { clearInterval(this._mobileScanInterval); this._mobileScanInterval = null; }
+                if (this._tvScanInterval) { clearInterval(this._tvScanInterval); this._tvScanInterval = null; }
+            },
+
+            scanFrameForQR(videoEl, canvasEl, onDetected) {
+                if (!videoEl || videoEl.readyState < 2 || videoEl.videoWidth === 0) return;
+                const w = videoEl.videoWidth;
+                const h = videoEl.videoHeight;
+                canvasEl.width = w;
+                canvasEl.height = h;
+                const ctx = canvasEl.getContext('2d');
+                ctx.drawImage(videoEl, 0, 0, w, h);
+                const imageData = ctx.getImageData(0, 0, w, h);
+                if (typeof jsQR === 'undefined') return;
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                if (code && code.data) onDetected(code.data);
+            },
+
+            // Scan a QR code from an uploaded image file (fallback when camera denied)
+            scanQRFromImageFile(file, onDetected, onFail) {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                    if (typeof jsQR === 'undefined') { onFail('jsQR not loaded'); return; }
+                    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(data.data, data.width, data.height, { inversionAttempts: 'attemptBoth' });
+                    if (code && code.data) onDetected(code.data);
+                    else onFail('No QR code found in image');
+                };
+                img.onerror = () => onFail('Could not read image');
+                img.src = url;
+            },
+
+            // ── QR Scan Modal (Desktop Receive) ────────────────────────────────
+
+            async openQRScanModal() {
+                this.toggleModal('qr-scan-modal');
+                await this.startQRCamera();
+            },
+
+            async startQRCamera() {
+                const offDiv = document.getElementById('qr-camera-off');
+                const statusEl = document.getElementById('qr-scan-status');
+                statusEl.textContent = 'Starting camera...';
+                statusEl.className = 'mt-3 p-3 rounded-xl bg-dark-800 border border-white/5 text-center text-xs text-gray-400';
+
+                const { stream, error } = await this.startCamera('qr-camera-feed');
+
+                if (!stream) {
+                    // Show error + image-upload fallback
+                    if (offDiv) offDiv.classList.remove('hidden');
+                    statusEl.innerHTML = `
+                        <p class="text-red-400 font-bold mb-2">⚠ ${error.text}</p>
+                        ${error.type === 'denied' || error.type === 'https' ? `
+                        <label class="cursor-pointer block mt-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 text-xs font-bold hover:bg-cyan-500/20 transition">
+                            <i class="ph ph-image mr-1"></i> Upload QR Screenshot instead
+                            <input type="file" accept="image/*" class="hidden" onchange="app.handleQRImageUpload(event)">
+                        </label>` : ''}
+                    `;
+                    statusEl.className = 'mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-center text-xs';
+                    return;
+                }
+
+                if (offDiv) offDiv.classList.add('hidden');
+                statusEl.textContent = '🔍 Scanning for QR code...';
+
+                const videoEl = document.getElementById('qr-camera-feed');
+                const canvasEl = document.getElementById('qr-scan-canvas');
+                let detected = false;
+
+                this._qrScanInterval = setInterval(() => {
+                    if (detected) return;
+                    this.scanFrameForQR(videoEl, canvasEl, (data) => {
+                        if (detected) return;
+                        detected = true;
+                        clearInterval(this._qrScanInterval);
+                        statusEl.textContent = '✅ QR Code detected!';
+                        statusEl.className = 'mt-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-center text-xs text-green-400';
+                        const flash = document.getElementById('qr-detected-flash');
+                        if (flash) { flash.classList.remove('hidden'); flash.classList.add('flex'); }
+                        setTimeout(() => {
+                            this.stopCamera('qr-camera-feed');
+                            this.simulatePhoneTransfer();
+                            this.closeQRScanModal();
+                        }, 1200);
+                    });
+                }, 250);
+            },
+
+            handleQRImageUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const statusEl = document.getElementById('qr-scan-status');
+                statusEl.innerHTML = '<p class="text-gray-400 text-xs">Reading image...</p>';
+                this.scanQRFromImageFile(file,
+                    (data) => {
+                        statusEl.innerHTML = `<p class="text-green-400 font-bold text-xs">✅ QR found! Connecting...</p>`;
+                        setTimeout(() => { this.simulatePhoneTransfer(); this.closeQRScanModal(); }, 800);
+                    },
+                    (msg) => {
+                        statusEl.innerHTML = `<p class="text-red-400 text-xs">❌ ${msg}. Try a clearer screenshot.</p>`;
+                    }
+                );
+            },
+
+            closeQRScanModal() {
+                this.stopCamera('qr-camera-feed');
+                const flash = document.getElementById('qr-detected-flash');
+                if (flash) { flash.classList.add('hidden'); flash.classList.remove('flex'); }
+                const offDiv = document.getElementById('qr-camera-off');
+                if (offDiv) offDiv.classList.remove('hidden');
+                this.toggleModal('qr-scan-modal');
+            },
+
+            // ── Transfer View camera (Desktop) ─────────────────────────────────
+
+            async startTransferViewCamera() {
+                const placeholder = document.getElementById('transfer-view-placeholder');
+                const statusEl = document.getElementById('transfer-view-status');
+                statusEl.textContent = 'Starting camera...';
+
+                const { stream, error } = await this.startCamera('transfer-view-camera');
+                if (!stream) {
+                    statusEl.innerHTML = `⚠ ${error.text}`;
+                    return;
+                }
+                if (placeholder) placeholder.classList.add('hidden');
+                statusEl.textContent = '🔍 Scanning for QR code...';
+
+                const videoEl = document.getElementById('transfer-view-camera');
+                const canvasEl = document.getElementById('transfer-view-canvas');
+                let detected = false;
+
+                this._tvScanInterval = setInterval(() => {
+                    if (detected) return;
+                    this.scanFrameForQR(videoEl, canvasEl, (data) => {
+                        if (detected) return;
+                        detected = true;
+                        clearInterval(this._tvScanInterval);
+                        statusEl.textContent = '✅ QR detected! Receiving transfer...';
+                        setTimeout(() => {
+                            this.stopCamera('transfer-view-camera');
+                            this.simulatePhoneTransfer();
+                            this.switchView('wired-sync');
+                        }, 1000);
+                    });
+                }, 250);
+            },
+
+            // ── Mobile Transmit Flow ────────────────────────────────────────────
+
+            openMobileTransmit() {
+                // Dismiss welcome screen if visible
+                const ws = document.getElementById('welcome-screen');
+                if (!ws.classList.contains('hidden')) {
+                    ws.classList.add('opacity-0');
+                    setTimeout(() => ws.classList.add('hidden'), 400);
+                }
+
+                const screen = document.getElementById('mobile-transmit-screen');
+                screen.style.display = 'flex';
+                screen.style.flexDirection = 'column';
+                this.mobileGoToStep('scan');
+
+                // Auto-start camera
+                setTimeout(() => this.startMobileCamera(), 300);
+            },
+
+            closeMobileTransmit() {
+                this.stopCamera('mobile-camera-feed');
+                if (this._mobileScanInterval) { clearInterval(this._mobileScanInterval); this._mobileScanInterval = null; }
+                document.getElementById('mobile-transmit-screen').style.display = 'none';
+                this.state.mobileSelectedFiles = [];
+            },
+
+            mobileGoToStep(step) {
+                const scanEl = document.getElementById('mobile-step-scan');
+                const sendEl = document.getElementById('mobile-step-send');
+                if (step === 'scan') {
+                    scanEl.style.display = 'flex';
+                    scanEl.style.flexDirection = 'column';
+                    sendEl.style.display = 'none';
+                } else {
+                    scanEl.style.display = 'none';
+                    sendEl.style.display = 'flex';
+                    sendEl.style.flexDirection = 'column';
+                }
+            },
+
+            mobileBackToScan() {
+                this.mobileGoToStep('scan');
+                this.stopCamera('mobile-camera-feed');
+                setTimeout(() => this.startMobileCamera(), 200);
+            },
+
+            async startMobileCamera() {
+                const placeholder = document.getElementById('mobile-camera-placeholder');
+                const statusEl = document.getElementById('mobile-scan-status');
+                statusEl.innerHTML = '<p class="text-gray-400 text-xs animate-pulse">Starting camera...</p>';
+
+                const { stream, error } = await this.startCamera('mobile-camera-feed');
+
+                if (!stream) {
+                    // Show error state + image upload fallback
+                    statusEl.innerHTML = `
+                        <p class="text-red-400 text-xs font-bold mb-1">⚠ ${error.text}</p>
+                        ${(error.type === 'denied' || error.type === 'https') ? `
+                        <label class="cursor-pointer inline-block mt-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 text-xs font-bold">
+                            <i class="ph ph-image mr-1"></i> Upload QR Screenshot
+                            <input type="file" accept="image/*" class="hidden" onchange="app.handleMobileQRImageUpload(event)">
+                        </label>` : ''}
+                    `;
+                    return;
+                }
+
+                // Camera started successfully
+                const videoEl = document.getElementById('mobile-camera-feed');
+                videoEl.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+                if (placeholder) placeholder.classList.add('hidden');
+                statusEl.innerHTML = '<p class="text-cyan-400 text-xs animate-pulse">🔍 Scanning for CineLink QR...</p>';
+
+                const canvasEl = document.getElementById('mobile-qr-canvas');
+                let detected = false;
+
+                this._mobileScanInterval = setInterval(() => {
+                    if (detected) return;
+                    this.scanFrameForQR(videoEl, canvasEl, (data) => {
+                        if (detected) return;
+                        detected = true;
+                        clearInterval(this._mobileScanInterval);
+                        this.mobileHandleQRSuccess(data);
+                    });
+                }, 250);
+            },
+
+            handleMobileQRImageUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const statusEl = document.getElementById('mobile-scan-status');
+                statusEl.innerHTML = '<p class="text-gray-400 text-xs">Reading image...</p>';
+                this.scanQRFromImageFile(file,
+                    (data) => {
+                        statusEl.innerHTML = '<p class="text-green-400 text-xs font-bold">✅ QR found!</p>';
+                        setTimeout(() => this.mobileHandleQRSuccess(data), 500);
+                    },
+                    (msg) => {
+                        statusEl.innerHTML = `<p class="text-red-400 text-xs">❌ ${msg}</p>
+                        <label class="cursor-pointer inline-block mt-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 text-xs font-bold">
+                            Try another image
+                            <input type="file" accept="image/*" class="hidden" onchange="app.handleMobileQRImageUpload(event)">
+                        </label>`;
+                    }
+                );
+            },
+
+            mobileSimulateQRSuccess() {
+                if (this._mobileScanInterval) { clearInterval(this._mobileScanInterval); this._mobileScanInterval = null; }
+                this.mobileHandleQRSuccess('CineLinkPairingSecret123');
+            },
+
+            mobileHandleQRSuccess(data) {
+                const successEl = document.getElementById('mobile-qr-success');
+                const statusEl = document.getElementById('mobile-scan-status');
+
+                successEl.classList.remove('hidden');
+                successEl.classList.add('flex');
+                statusEl.innerHTML = '<p class="text-green-400 text-xs font-bold">✅ PC Connected!</p>';
+
+                const serverId = data.includes('CineLink') ? 'CL-SERVER-01' : data.substring(0, 16);
+                document.getElementById('mobile-pc-id').textContent = serverId + ' • Local WiFi';
+
+                this.stopCamera('mobile-camera-feed');
+
+                setTimeout(() => {
+                    successEl.classList.add('hidden');
+                    successEl.classList.remove('flex');
+                    this.state.mobileSelectedFiles = [];
+                    this.mobileGoToStep('send');
+                    this.mobileSwitchTab('send');
+                    this.renderMobileFileList();
+                }, 900);
+            },
+
+            mobileSwitchTab(tab) {
+                const sendPanel = document.getElementById('mobile-panel-send');
+                const libPanel = document.getElementById('mobile-panel-library');
+                const sendTab = document.getElementById('mobile-tab-send');
+                const libTab = document.getElementById('mobile-tab-library');
+
+                if (tab === 'send') {
+                    sendPanel.style.display = 'flex';
+                    sendPanel.style.flexDirection = 'column';
+                    libPanel.style.display = 'none';
+                    sendTab.classList.add('bg-white/10', 'text-white');
+                    sendTab.classList.remove('text-gray-400');
+                    libTab.classList.remove('bg-white/10', 'text-white');
+                    libTab.classList.add('text-gray-400');
+                    document.getElementById('mobile-step2-title').textContent = 'Send Files';
+                } else {
+                    sendPanel.style.display = 'none';
+                    libPanel.style.display = 'flex';
+                    libPanel.style.flexDirection = 'column';
+                    libTab.classList.add('bg-white/10', 'text-white');
+                    libTab.classList.remove('text-gray-400');
+                    sendTab.classList.remove('bg-white/10', 'text-white');
+                    sendTab.classList.add('text-gray-400');
+                    document.getElementById('mobile-step2-title').textContent = 'PC Library';
+                    this.renderMobilePCLibrary();
+                }
+            },
+
+            renderMobilePCLibrary() {
+                const list = document.getElementById('mobile-library-list');
+                const videos = this.state.videos;
+
+                if (!videos || videos.length === 0) {
+                    list.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-16 text-gray-600 text-center">
+                            <i class="ph ph-film-strip text-5xl mb-3 opacity-40"></i>
+                            <p class="text-sm font-medium text-gray-500">PC Library is empty</p>
+                            <p class="text-xs text-gray-600 mt-1 px-4">Add media files on the PC first, then browse them here.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Group by category
+                const categories = ['Movies', 'Series', 'Music Videos'];
+                let html = '';
+
+                categories.forEach(cat => {
+                    const catVids = videos.filter(v => v.category === cat);
+                    if (!catVids.length) return;
+                    html += `<p class="text-xs font-bold text-gray-500 uppercase tracking-widest mt-4 mb-2">${cat}</p>`;
+                    catVids.forEach(vid => {
+                        const cleanTitle = vid.title.replace(/\.[^/.]+$/, '');
+                        const meta = vid.episodes ? `${vid.episodes.length} Episodes` : vid.size;
+                        const thumb = vid.thumbnailUrl
+                            ? `<img src="${vid.thumbnailUrl}" class="w-full h-full object-cover absolute inset-0 opacity-70">`
+                            : '';
+                        const icon = cat === 'Movies' ? 'ph-film-slate' : cat === 'Series' ? 'ph-television' : 'ph-music-notes';
+
+                        html += `
+                        <div class="flex items-center gap-3 p-3 rounded-xl bg-dark-800 border border-white/5 mb-2 active:bg-white/10 transition cursor-pointer"
+                             onclick="app.mobilePlayFromLibrary('${vid.id}')">
+                            <div class="w-16 h-11 rounded-lg bg-dark-700 relative overflow-hidden flex-shrink-0 flex items-center justify-center border border-white/5">
+                                ${thumb}
+                                <i class="ph-fill ${icon} text-white/30 text-xl relative z-10 ${vid.thumbnailUrl ? 'hidden' : ''}"></i>
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10"></div>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-white text-sm font-semibold truncate">${cleanTitle}</p>
+                                <p class="text-gray-500 text-xs">${meta}</p>
+                            </div>
+                            <button class="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 hover:bg-cyan-500/30 transition"
+                                    onclick="event.stopPropagation(); app.mobilePlayFromLibrary('${vid.id}')">
+                                <i class="ph-fill ph-play text-white text-sm"></i>
+                            </button>
+                        </div>`;
+                    });
+                });
+
+                list.innerHTML = html;
+            },
+
+            mobilePlayFromLibrary(id) {
+                // Close transmit screen, go to dashboard/player
+                this.closeMobileTransmit();
+                const vid = this.state.videos.find(v => v.id === id);
+                if (!vid) return;
+                if (vid.episodes && vid.episodes.length > 0) {
+                    this.showDetails(id);
+                } else {
+                    this.playVideo(id);
+                }
+            },
+
+            handleMobileFilesSelected(event) {
+                const files = Array.from(event.target.files);
+                if (!files.length) return;
+                this.state.mobileSelectedFiles = this.state.mobileSelectedFiles || [];
+                files.forEach(f => this.state.mobileSelectedFiles.push(f));
+                event.target.value = '';
+                this.renderMobileFileList();
+            },
+
+            renderMobileFileList() {
+                const list = document.getElementById('mobile-selected-files-list');
+                const sendBtn = document.getElementById('mobile-send-btn');
+                const sendLabel = document.getElementById('mobile-send-label');
+                const files = this.state.mobileSelectedFiles || [];
+
+                if (files.length === 0) {
+                    list.innerHTML = `<div class="flex flex-col items-center justify-center py-10 text-gray-600"><i class="ph ph-files text-4xl mb-2 opacity-50"></i><p class="text-sm">No files selected yet</p></div>`;
+                    sendBtn.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    const totalSize = files.reduce((a, f) => a + f.size, 0);
+                    const sizeStr = totalSize > 1024 * 1024 * 1024
+                        ? (totalSize / (1024 ** 3)).toFixed(2) + ' GB'
+                        : (totalSize / (1024 ** 2)).toFixed(1) + ' MB';
+
+                    list.innerHTML = files.map((f, i) => `
+                        <div class="mobile-file-item selected bg-dark-800 border border-cyan-500/30 rounded-xl p-3 flex items-center gap-3 mb-2">
+                            <div class="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                                <i class="ph-fill ph-file-video text-cyan-400"></i>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-white text-sm font-medium truncate">${f.name}</p>
+                                <p class="text-gray-500 text-xs">${(f.size / (1024 * 1024)).toFixed(1)} MB</p>
+                            </div>
+                            <button onclick="app.removeMobileFile(${i})" class="text-gray-600 hover:text-red-400 transition p-1 flex-shrink-0">
+                                <i class="ph ph-x-circle text-lg"></i>
+                            </button>
+                        </div>
+                    `).join('');
+
+                    sendBtn.classList.remove('opacity-50', 'pointer-events-none');
+                    sendLabel.textContent = `Send ${files.length} file${files.length > 1 ? 's' : ''} (${sizeStr})`;
+                }
+            },
+
+            removeMobileFile(index) {
+                this.state.mobileSelectedFiles.splice(index, 1);
+                this.renderMobileFileList();
+            },
+
+            async startMobileTransmission() {
+                const files = this.state.mobileSelectedFiles || [];
+                if (!files.length) return;
+
+                const progressEl = document.getElementById('mobile-transfer-progress');
+                const barEl = document.getElementById('mobile-transfer-bar');
+                const filenameEl = document.getElementById('mobile-transfer-filename');
+                const pctEl = document.getElementById('mobile-transfer-pct');
+                const sendBtn = document.getElementById('mobile-send-btn');
+
+                progressEl.classList.remove('hidden');
+                sendBtn.classList.add('opacity-50', 'pointer-events-none');
+
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    filenameEl.textContent = `(${i + 1}/${files.length}) ${file.name}`;
+                    barEl.style.width = '0%';
+                    pctEl.textContent = '0%';
+
+                    // Real file reading + BroadcastChannel send (works across tabs on same origin)
+                    await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = async (e) => {
+                            const arrayBuffer = e.target.result;
+                            
+                            // Send via BroadcastChannel so a PC tab can receive it
+                            try {
+                                const channel = new BroadcastChannel('cinelink-transfer');
+                                channel.postMessage({
+                                    type: 'file-transfer',
+                                    name: file.name,
+                                    size: file.size,
+                                    mimeType: file.type,
+                                    data: arrayBuffer,
+                                    sender: 'mobile'
+                                });
+                                channel.close();
+                            } catch (e) { /* BroadcastChannel may not be available */ }
+
+                            // Simulate progress animation
+                            let pct = 0;
+                            const interval = setInterval(() => {
+                                pct = Math.min(pct + Math.random() * 15 + 5, 100);
+                                barEl.style.width = pct + '%';
+                                pctEl.textContent = Math.round(pct) + '%';
+                                if (pct >= 100) {
+                                    clearInterval(interval);
+                                    resolve();
+                                }
+                            }, 100);
+                        };
+                        reader.readAsArrayBuffer(file);
+                    });
+                }
+
+                // Complete
+                filenameEl.textContent = '✅ Transfer complete!';
+                barEl.className = 'h-full rounded-full bg-gradient-to-r from-green-400 to-green-500';
+                barEl.style.width = '100%';
+                pctEl.textContent = '100%';
+
+                // Register files as received on the PC side (same-tab simulation)
+                files.forEach(file => {
+                    const newId = 'recv_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
+                    this.state.receivedFiles.push({
+                        id: newId,
+                        name: file.name,
+                        size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+                        time: 'Just now',
+                        fileRef: file
+                    });
+                    this.state.selectedReceivedIds.push(newId);
+                });
+
+                setTimeout(() => {
+                    this.renderReceivedFiles();
+                    this.closeMobileTransmit();
+                    this.switchView('wired-sync');
+                }, 1500);
+            },
+
+            // ── BroadcastChannel receiver (PC side) ────────────────────────────
+
+            setupBroadcastReceiver() {
+                if (!window.BroadcastChannel) return;
+                const channel = new BroadcastChannel('cinelink-transfer');
+                channel.addEventListener('message', (event) => {
+                    const msg = event.data;
+                    if (msg && msg.type === 'file-transfer') {
+                        const newId = 'recv_bc_' + Date.now();
+                        this.state.receivedFiles.push({
+                            id: newId,
+                            name: msg.name,
+                            size: (msg.size / (1024 * 1024)).toFixed(1) + ' MB',
+                            time: 'Just now'
+                        });
+                        this.state.selectedReceivedIds.push(newId);
+                        this.renderReceivedFiles();
+                        // Show notification badge on wired-sync nav
+                        const badge = document.getElementById('received-count-badge');
+                        if (badge) badge.classList.remove('hidden');
+                    }
+                });
+                this._broadcastChannel = channel;
+            },
+
+            // Restored original toggle modal logic
             toggleModal(id) {
                 const modal = document.getElementById(id);
                 const content = document.getElementById(id + '-content');
+                
                 if (modal.classList.contains('hidden')) {
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
-                    if(content) setTimeout(() => { content.classList.replace('scale-95', 'scale-100'); content.classList.replace('opacity-0', 'opacity-100'); }, 10);
+                    // Small delay for transition
+                    setTimeout(() => {
+                        content.classList.remove('scale-95', 'opacity-0');
+                        content.classList.add('scale-100', 'opacity-100');
+                    }, 10);
                 } else {
-                    if(content) { content.classList.replace('scale-100', 'scale-95'); content.classList.replace('opacity-100', 'opacity-0'); }
-                    setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
+                    content.classList.remove('scale-100', 'opacity-100');
+                    content.classList.add('scale-95', 'opacity-0');
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                    }, 300);
                 }
             }
         };
 
-        document.addEventListener('DOMContentLoaded', () => { app.init(); });
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+
     </script>
 </body>
 </html>
